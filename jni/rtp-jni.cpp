@@ -11,11 +11,11 @@
  */
 
 #include <jni.h>
-#include "rtpsession.h"
-#include "rtpudpv4transmitter.h"
-#include "rtpipv4address.h"
-#include "rtpsessionparams.h"
-#include "rtperrors.h"
+#include "rtpsession.h"				//定义了rtpsession的一些实现
+#include "rtpudpv4transmitter.h"	//定义了RTPSession的第二个参数类
+#include "rtpipv4address.h"			//定义了rtpipv4address
+#include "rtpsessionparams.h"		//定义了rtpsession的第一个参数类
+#include "rtperrors.h"				//定义了RTP中的错误信息
 #include <netinet/in.h>	//not win32
 #include <arpa/inet.h>	//not win32
 #include <stdlib.h>
@@ -50,7 +50,7 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv *, jobject);
 
 void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 {
- 	RTPSession sess;
+ 	RTPSession sess;	//RTPSession类来实例化此次的RTP会话
 	uint16_t portbase,destport;
 	uint32_t destip;
 	std::string ipstr;
@@ -64,27 +64,43 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 	num=PACKET_NUM;
 
 	//2、ip数据结构转换
+	//点分表达式转换为网络字节序列
+	//a.b.c.d-->d*2^24+c*2^16+b*2^8+d*2^0
 	destip = inet_addr(ipstr.c_str());
 	if (destip == INADDR_NONE)
 	{
 		LOGE("BAD IP ADDR");
 		return ;
 	}
-	//BYTE ORDER到host byte order转换
+	//网络字节序列转换为主机字节序列
+	//network to host long
 	destip = ntohl(destip);
 	
+	//下面创建一个RTP会话，发送传入的数据包
+
+	//这是rtpsession的第二个参数类，他的成员函数可以设定监听端口
 	RTPUDPv4TransmissionParams transparams;
+
+	//这是rtpsession的第一个参数类，他的成员函数可以设置恰当的时戳单元
 	RTPSessionParams sessparams;
 	
 	//3、时间戳设置
+	//设置恰当的时戳单元，每秒我们需要发送10次，故参数为1.0/10
 	sessparams.SetOwnTimestampUnit(TIME_STAMP);
+	//下面设置是不是接收我们自定义的数据包，这里选是
 	sessparams.SetAcceptOwnPackets(true);
+	//设置本机端口
 	transparams.SetPortbase(portbase);
 
 	//4、创建会话
 	status = sess.Create(sessparams,&transparams);	
 //	checkerror(status);
+	//组合目的地址
 	RTPIPv4Address addr(destip,destport);
+	//设置目的地址，增加发送的目的地址。当然可以增加很多地址完成多播的功能
+	//另外还可以使用DeleteDestination()和 ClearDestinations()来删除和清楚目的地址
+	//也可以写成： unsigned long addr = ntohl（inet_addr("127.0.0.1")）;
+	// sess.AddDestination(addr,6000);
 	status = sess.AddDestination(addr);
 //	checkerror(status);
 
@@ -96,14 +112,19 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 	//5、发送及接受数据包
 	for (i = 1 ; i <= num ; i++)
 	{
-		// send the packet
+		//发送流媒体数据.
+		//第一个参数是发送的数据，二个是数据长度，往后是rtp负载类型，标识，时戳量
+		//当然JRTPLIB允许将他们设置成会话的默认参数，
+		//这是调用RTPSession类的setDefaultpayloadtype(),setDefaultmark，等方法类
+		//完成的，如果那样设置之后，我们可以这样来发送数据
+		//status = sess.SendPacket((void *)"1234567890",10);
 		status = sess.SendPacket((void *)"1234567890",10,0,false,10);
 		
 		LOGD("send packet:%d",i);
 
 		sess.BeginDataAccess();
 
-		// check incoming packets
+		//收到的报文，遍历所有携带数据的源（因为一个rtp会话允许有多个参与者（源））
 		if (sess.GotoFirstSourceWithData())
 		{
 			do
@@ -135,11 +156,5 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 
 	return;
 }
-
-
-
-
-
-
 
 
