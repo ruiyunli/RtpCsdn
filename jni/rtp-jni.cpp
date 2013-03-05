@@ -1,34 +1,37 @@
+
+/*
+ * RTP传输流程：
+ * 1、配置信息
+ * 	     包括本地端口，目标端口，目标ip，发送的数据包次数
+ * 2、ip数据结构转换
+ * 3、时间戳设置
+ * 4、创建会话
+ * 5、发送及接受数据包
+ *
+ */
+
 #include <jni.h>
-
-#ifdef __cplusplus
-
-extern "C" {
-
-void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv *, jobject);
-
-}
-
-#endif
-
 #include "rtpsession.h"
 #include "rtpudpv4transmitter.h"
 #include "rtpipv4address.h"
 #include "rtpsessionparams.h"
 #include "rtperrors.h"
-#ifndef WIN32
-	#include <netinet/in.h>
-	#include <arpa/inet.h>
-#else
-	#include <winsock2.h>
-#endif // WIN32
+#include <netinet/in.h>	//not win32
+#include <arpa/inet.h>	//not win32
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
 #include <string>
 
+//
+#ifdef __cplusplus
+extern "C" {
+void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv *, jobject);
+}
+#endif
 
-#include <android/log.h>
 /**** 控制台输出 ****/
+#include <android/log.h>
 #define  LOG_TAG "RTP_JNI"
 #define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG  , LOG_TAG, __VA_ARGS__)
@@ -36,109 +39,70 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv *, jobject);
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN   , LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR  , LOG_TAG, __VA_ARGS__)
 
-//using namespace jrtplib
 
-//
-// This function checks if there was a RTP error. If so, it displays an error
-// message and exists.
-//
+//配置信息
+#define LOCAL_PORT 10000
+#define DEST_PORT 10000
+#define DEST_IP "127.0.0.1"
+#define PACKET_NUM 10
+#define TIME_STAMP 1.0/10.0
 
-//void checkerror(jint rtperr)
-//{
-//	if (rtperr < 0)
-//	{
-//		std::cout << "ERROR: " << RTPGetErrorString(rtperr) << std::endl;
-//		exit(-1);
-//	}
-//}
-
-//
-// The main routine
-//
 
 void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 {
- 
-
-
-	RTPSession sess;
+ 	RTPSession sess;
 	uint16_t portbase,destport;
 	uint32_t destip;
 	std::string ipstr;
 	int status,i,num;
 
-        // First, we'll ask for the necessary information
-		
-//	std::cout << "Enter local portbase:" << std::endl;
-//	std::cin >> portbase;
-//	std::cout << std::endl;
-	portbase=10000;
-	
-//	std::cout << "Enter the destination IP address" << std::endl;
-//	std::cin >> ipstr;
-    ipstr="127.0.0.1";
+    //1、配置信息
+	//包括本地端口，目标端口，目标ip，发送的数据包次数
+	portbase=LOCAL_PORT;
+    ipstr=DEST_IP;
+    destport=DEST_PORT;
+	num=PACKET_NUM;
 
+	//2、ip数据结构转换
 	destip = inet_addr(ipstr.c_str());
 	if (destip == INADDR_NONE)
 	{
-	//	std::cerr << "Bad IP address specified" << std::endl;
+		LOGE("BAD IP ADDR");
 		return ;
 	}
-	
-	// The inet_addr function returns a value in network byte order, but
-	// we need the IP address in host byte order, so we use a call to
-	// ntohl
+	//BYTE ORDER到host byte order转换
 	destip = ntohl(destip);
-	
-//	std::cout << "Enter the destination port" << std::endl;
-//	std::cin >> destport;
-	destport=10000;
-	
-	//std::cout << std::endl;
-//	std::cout << "Number of packets you wish to be sent:" << std::endl;
-//	std::cin >> num;
-	num=10;
-	
-	// Now, we'll create a RTP session, set the destination, send some
-	// packets and poll for incoming data.
-
-
-//jboolean bl = (*env)->CallBooleanMethod(env, thiz, mid, js);
 	
 	RTPUDPv4TransmissionParams transparams;
 	RTPSessionParams sessparams;
 	
-	// IMPORTANT: The local timestamp unit MUST be set, otherwise
-	//            RTCP Sender Report info will be calculated wrong
-	// In this case, we'll be sending 10 samples each second, so we'll
-	// put the timestamp unit to (1.0/10.0)
-	sessparams.SetOwnTimestampUnit(1.0/10.0);		
-	
+	//3、时间戳设置
+	sessparams.SetOwnTimestampUnit(TIME_STAMP);
 	sessparams.SetAcceptOwnPackets(true);
 	transparams.SetPortbase(portbase);
+
+	//4、创建会话
 	status = sess.Create(sessparams,&transparams);	
 //	checkerror(status);
-	
 	RTPIPv4Address addr(destip,destport);
-	
 	status = sess.AddDestination(addr);
 //	checkerror(status);
 
-	__android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, "%s", "ready\n");
+	LOGD("LocalPort:%d",portbase);
+	LOGD("DestPort:%d",destport);
+	LOGD(DEST_IP);
+	LOGD("ready!");
 
-
+	//5、发送及接受数据包
 	for (i = 1 ; i <= num ; i++)
 	{
-		printf("\nSending packet %d/%d\n",i,num);
-		
 		// send the packet
 		status = sess.SendPacket((void *)"1234567890",10,0,false,10);
-//		checkerror(status);
-	//	 jboolean bl = (*env)->CallBooleanMethod(env, thiz, regsec, jregsec);
-
-		sess.BeginDataAccess();
 		
 		LOGD("send packet:%d",i);
+
+		sess.BeginDataAccess();
+
 		// check incoming packets
 		if (sess.GotoFirstSourceWithData())
 		{
@@ -149,10 +113,8 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 				while ((pack = sess.GetNextPacket()) != NULL)
 				{
 					// You can examine the data here
-				//	printf("Got packet !\n");
 					LOGD("!!!!!Got packet!!!!!");
-					// we don't longer need the packet, so
-					// we'll delete it
+					// we don't longer need the packet, so we'll delete it
 					sess.DeletePacket(pack);
 				}
 			} while (sess.GotoNextSourceWithData());
