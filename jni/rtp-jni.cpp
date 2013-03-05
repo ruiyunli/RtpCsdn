@@ -122,6 +122,8 @@ void Java_com_example_rtpcsdn_MainActivity_RtpTest(JNIEnv* env, jobject thiz)
 		
 		LOGD("send packet:%d",i);
 
+		//为了保证source table（数据源列表）不会改动，类似GotoFirstSourceWithData等函数
+		//的执行必须要在BeginDataAccess和EndDataAccess之间，详情见库函数声明
 		sess.BeginDataAccess();
 
 		//收到的报文，遍历所有携带数据的源（因为一个rtp会话允许有多个参与者（源））
